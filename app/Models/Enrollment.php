@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Enrollment extends Model
 {
+    protected $fillable = ['user_id', 'training_id', 'statut', 'note_finale'];
     //each enrolment is linked only with one user
     public function user() {
     return $this->belongsTo(User::class);

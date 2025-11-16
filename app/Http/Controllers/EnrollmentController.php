@@ -1,76 +1,68 @@
 <?php
-
 namespace App\Http\Controllers;
 
-use App\Models\Enrollment;
-use App\Models\Training;
 use Illuminate\Http\Request;
+use App\Services\EnrollmentService;
+use App\DTOs\EnrollToTrainingDTO;
+use App\DTOs\GradeEnrollmentDTO;
+use App\Models\Training;
 
 class EnrollmentController extends Controller
 {
-   public function enroll(Request $request, Training $training)
-{
-    $user = $request->user();
+    protected EnrollmentService $enrollmentService;
 
-    // Already enrolled?
-    if($training->enrollments()->where('user_id',$user->id)->exists()){
-        return response()->json(['message'=>'Already enrolled'], 400);
+    public function __construct(EnrollmentService $enrollmentService)
+    {
+        $this->enrollmentService = $enrollmentService;
     }
 
-    // Check max participants
-    if($training->enrollments()->count() >= $training->max_participants){
-        return response()->json(['message'=>'Training full'], 400);
-    }
+    public function enroll(Request $request, Training $training)
+    {
+        $dto = new EnrollToTrainingDTO($request->user()->id, $training->id);
 
-    $enrollment = $training->enrollments()->create([
-        'user_id' => $user->id,
-        'status' => 'en_attente'
-    ]);
-
-    return response()->json($enrollment, 201);
-}
-    //return all enrollments of the apprenant ho logged in
-    public function myEnrollments(Request $request) {
-        $user = $request->user();
-        return response()->json(Enrollment::with('training')->where('user_id',$user->id)->paginate(15));
-    }
-
-    //the formateur can grade the apprenants in his trainings
-    public function grade(Request $request, Training $training)
-{
-    $user = $request->user();
-
-    if ($user->role === 'admin') {
-        // allowed
-    }
-    elseif ($user->role === 'formateur') {
-        if ($training->formateur_id !== $user->id) {
-            return response()->json(['message' => 'Forbidden'], 403);
+        try {
+            $enrollment = $this->enrollmentService->enrollUser($dto, $training);
+            return response()->json($enrollment, 201);
+        } catch (\Exception $e) {
+            return response()->json(['message'=>$e->getMessage()], 400);
         }
     }
-    else {
-        return response()->json(['message' => 'Forbidden'], 403);
+
+    public function myEnrollments(Request $request)
+    {
+        return response()->json($this->enrollmentService->getUserEnrollments($request->user()->id));
     }
 
-    $data = $request->validate([
-        'user_id' => 'required|exists:users,id',
-        'note_finale' => 'required|numeric|min:0|max:100',
-        'statut' => 'nullable|in:terminee,acceptee,en_attente'
-    ]);
+    public function grade(Request $request, Training $training)
+    {
+        $data = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'note_finale' => 'required|numeric|min:0|max:100',
+            'statut' => 'nullable|in:terminee,acceptee,en_attente'
+        ]);
 
-    $enrollment = Enrollment::where('training_id', $training->id)
-        ->where('user_id', $data['user_id'])
-        ->first();
+        $dto = new GradeEnrollmentDTO(
+            $data['user_id'],
+            $training->id,
+            $data['note_finale'],
+            $data['statut'] ?? null
+        );
 
-    if (!$enrollment) {
-        return response()->json(['message' => 'User not enrolled'], 404);
+        try {
+            $enrollment = $this->enrollmentService->gradeEnrollment(
+                $dto,
+                $training,
+                $request->user()->role,
+                $request->user()->id
+            );
+
+            if(!$enrollment) {
+                return response()->json(['message'=>'User not enrolled'], 404);
+            }
+
+            return response()->json($enrollment);
+        } catch (\Exception $e) {
+            return response()->json(['message'=>$e->getMessage()], $e->getCode() ?: 400);
+        }
     }
-
-    $enrollment->update([
-        'note_finale' => $data['note_finale'],
-        'statut' => $data['statut'] ?? $enrollment->statut
-    ]);
-
-    return response()->json($enrollment);
-}
 }

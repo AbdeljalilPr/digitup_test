@@ -11,7 +11,7 @@ class Entreprise extends Model
 
     public function employees()
     {
-        return $this->hasMany(User::class);
+         return $this->hasMany(User::class, 'entreprise_id');
     }
 
     public function seats()

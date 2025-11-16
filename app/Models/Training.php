@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Training extends Model
 {
+    protected $fillable = ['title', 'description', 'duration', 'niveau', 'categorie_id', 'price', 'start_date', 'max_participants', 'status', 'formateur_id'];
     //each traiging refer to one category
     public function categorie() {
     return $this->belongsTo(Category::class, 'categorie_id');

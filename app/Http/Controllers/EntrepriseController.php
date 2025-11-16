@@ -1,116 +1,96 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Services\EntrepriseService;
+use App\DTOs\CreateEmployeeDTO;
+use App\DTOs\PurchaseSeatsDTO;
+use App\DTOs\EnrollEmployeeDTO;
+use App\Models\Training;
 
 class EntrepriseController extends Controller
 {
-    //
-public function createEmployee(Request $request)
-{
-    $entreprise = $request->user();
+    protected EntrepriseService $service;
 
-    if ($entreprise->role !== 'entreprise') {
-        return response()->json(['message' => 'Forbidden'], 403);
+    public function __construct(EntrepriseService $service)
+    {
+        $this->service = $service;
     }
 
-    $data = $request->validate([
-        'name' => 'required|string',
-        'email' => 'required|email|unique:users,email',
-    ]);
+    public function createEmployee(Request $request)
+    {
+        $entreprise = $request->user();
+        if ($entreprise->role !== 'entreprise') {
+            return response()->json(['message'=>'Forbidden'], 403);
+        }
 
-    $employee = User::create([
-        'name' => $data['name'],
-        'email' => $data['email'],
-        'password' => bcrypt('password'),
-        'role' => 'employee',
-        'entreprise_id' => $entreprise->id
-    ]);
+        $data = $request->validate([
+            'name'=>'required|string',
+            'email'=>'required|email|unique:users,email'
+        ]);
 
-    return response()->json($employee, 201);
-}
+        $dto = new CreateEmployeeDTO(array_merge($data,['entreprise_id'=>$entreprise->id]));
+        $employee = $this->service->createEmployee($dto);
 
-public function purchaseSeats(Request $request, Training $training)
-{
-    $entreprise = $request->user();
-
-    if ($entreprise->role !== 'entreprise') {
-        return response()->json(['message' => 'Forbidden'], 403);
+        return response()->json($employee, 201);
     }
 
-    $data = $request->validate([
-        'seats' => 'required|integer|min:1'
-    ]);
+    public function purchaseSeats(Request $request, Training $training)
+    {
+        $entreprise = $request->user();
+        if ($entreprise->role !== 'entreprise') {
+            return response()->json(['message'=>'Forbidden'], 403);
+        }
 
-    $record = EntrepriseTrainingSeat::firstOrCreate(
-        [
-            'entreprise_id' => $entreprise->id,
-            'training_id' => $training->id
-        ]
-    );
+        $data = $request->validate([
+            'seats'=>'required|integer|min:1'
+        ]);
 
-    $record->increment('seats_purchased', $data['seats']);
+        $dto = new PurchaseSeatsDTO([
+            'entreprise_id'=>$entreprise->id,
+            'training_id'=>$training->id,
+            'seats'=>$data['seats']
+        ]);
 
-    return response()->json([
-        'message' => 'Seats purchased successfully',
-        'data' => $record
-    ]);
-}
+        $record = $this->service->purchaseSeats($dto);
 
-public function enrollEmployee(Request $request, Training $training)
-{
-    $entreprise = $request->user();
-
-    if ($entreprise->role !== 'entreprise') {
-        return response()->json(['message' => 'Forbidden'], 403);
+        return response()->json([
+            'message'=>'Seats purchased successfully',
+            'data'=>$record
+        ]);
     }
 
-    $data = $request->validate([
-        'employee_id' => 'required|exists:users,id'
-    ]);
+    public function enrollEmployee(Request $request, Training $training)
+    {
+        $entreprise = $request->user();
+        if ($entreprise->role !== 'entreprise') {
+            return response()->json(['message'=>'Forbidden'], 403);
+        }
 
-    $employee = User::find($data['employee_id']);
+        $data = $request->validate([
+            'employee_id'=>'required|exists:users,id'
+        ]);
 
-    if ($employee->entreprise_id !== $entreprise->id) {
-        return response()->json(['message' => 'Employee not part of this entreprise'], 403);
+        $dto = new EnrollEmployeeDTO([
+            'employee_id'=>$data['employee_id'],
+            'training_id'=>$training->id,
+            'entreprise_id'=>$entreprise->id
+        ]);
+
+        $this->service->enrollEmployee($dto);
+
+        return response()->json(['message'=>'Employee enrolled']);
     }
 
-    $seats = EntrepriseTrainingSeat::where('entreprise_id', $entreprise->id)
-        ->where('training_id', $training->id)
-        ->first();
+    public function employeesProgress(Request $request)
+    {
+        $entreprise = $request->user();
+        if ($entreprise->role !== 'entreprise') {
+            return response()->json(['message'=>'Forbidden'], 403);
+        }
 
-    if (!$seats) {
-        return response()->json(['message' => 'No seats purchased'], 400);
+        $progress = $this->service->getEmployeesProgress($entreprise->id);
+
+        return response()->json($progress);
     }
-
-    if ($seats->seats_used >= $seats->seats_purchased) {
-        return response()->json(['message' => 'No available seats'], 400);
-    }
-
-    Enrollment::create([
-        'training_id' => $training->id,
-        'user_id' => $employee->id,
-        'statut' => 'acceptee'
-    ]);
-
-    $seats->increment('seats_used');
-
-    return response()->json(['message' => 'Employee enrolled']);
-}
-
-public function employeesProgress(Request $request)
-{
-    $entreprise = $request->user();
-
-    if ($entreprise->role !== 'entreprise') {
-        return response()->json(['message' => 'Forbidden'], 403);
-    }
-
-    $employees = User::where('entreprise_id', $entreprise->id)
-        ->with(['enrollments.training'])
-        ->get();
-
-    return response()->json($employees);
-}
 }

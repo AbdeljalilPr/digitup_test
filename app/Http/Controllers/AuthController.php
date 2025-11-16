@@ -6,13 +6,28 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use App\Services\AuthService;
+use App\DTOs\CreateUserDTO;
+use App\DTOs\LoginUserDTO;
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Services\AuthService;
+use App\DTOs\CreateUserDTO;
+use App\DTOs\LoginUserDTO;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
-    //register new user without any token before
+    protected AuthService $authService;
+
+    public function __construct(AuthService $authService)
+    {
+        $this->authService = $authService;
+    }
+
     public function register(Request $request)
     {
-        //check informatins
         $data = $request->validate([
             'name' => [ 'required','string','max:255'],
             'email' => ['required','email','unique:users'],
@@ -20,17 +35,12 @@ class AuthController extends Controller
             'role' => ['required', Rule::in(['admin','formateur','apprenant','entreprise'])],
         ]);
 
-        //creat user
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-            'role' => $data['role'],
-        ]);
+        $dto = new CreateUserDTO($data['name'], $data['email'], $data['password'], $data['role']);
+
+        $user = $this->authService->register($dto);
 
         return response()->json(['message' => 'User successfully registered', 'user' => $user], 201);
     }
-
 
     public function login(Request $request)
     {
@@ -39,23 +49,21 @@ class AuthController extends Controller
             'password' =>['required','string'] ,
         ]);
 
-        $user = User::where('email', $data['email'])->first();
+        $dto = new LoginUserDTO($data['email'], $data['password']);
 
-        if (!$user || !Hash::check($data['password'], $user->password)) {
+        $token = $this->authService->login($dto);
+
+        if (!$token) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
-
-        //creat new token
-            $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'message' => 'Login successful',
             'access_token' => $token,
             'token_type' => 'Bearer',
-            'user' => $user
+            'user' => auth()->user()
         ]);
     }
-
 
     public function logout(Request $request)
     {

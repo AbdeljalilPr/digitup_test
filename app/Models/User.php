@@ -22,6 +22,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'entreprise_id'
     ];
 
     /**
@@ -55,4 +56,8 @@ class User extends Authenticatable
                     ->withPivot('statut', 'note_finale')
                     ->withTimestamps();
     }
+    public function entreprise()
+{
+    return $this->belongsTo(Entreprise::class, 'entreprise_id');
+}
 }
