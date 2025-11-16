@@ -110,13 +110,18 @@ Enrollments
 - statut (en_attente, acceptee, terminee)
 - note_finale
 - timestamps
+EntrepriseTrainingSeats
+- id, entreprise_id → users.id, training_id → trainings.id, seats_purchased, seats_used, timestamps
 ```
 
 ###  Relations
-- User 1—∞ Trainings (formateur → ses formations)
-- Category 1—∞ Trainings
-- Training 1—∞ Enrollments
-- User ∞—∞ Training (via enrollments)
+- User 1—> Trainings (formateur → ses formations)
+- Category 1—> Trainings
+- Training 1—> Enrollments
+- User <—> Training (via enrollments)
+- Entreprise 1—> Employees (users)
+
+- Entreprise 1—> Seats (EntrepriseTrainingSeats)
 
 ---
 
@@ -128,12 +133,13 @@ Enrollments
 - **admin**
 - **formateur**
 - **apprenant**
-
+- **entreprise**
 ### Middlewares :
 - `auth:sanctum`
 - `role:admin`
 - `role:formateur`
 - `role:apprenant`
+- `role:entreprise`
 
 Le middleware Role vérifie que l’utilisateur a bien le rôle associé à la route.
 
@@ -198,6 +204,7 @@ Le middleware Role vérifie que l’utilisateur a bien le rôle associé à la r
 | POST | /trainings/{training}/enroll |
 | GET | /my-enrollments |
 
+## Routes ENTREPRISE
 ---
 
 #  6. Exemples Postman
@@ -251,14 +258,13 @@ POST `/trainings/1/enroll`
 Actuellement, l’architecture mise en place est :
 
 ```
-Controllers → Models → Database
+Controller → Service → Repository → Models → Database
 ```
 
-Chaque Controller gère :
-- la validation
-- les accès selon rôle
-- les actions CRUD
-- les relations Eloquent
+Controllers : reçoivent la requête HTTP, valident via FormRequest/DTO, appellent les Services
+Services : contiennent la logique métier, valident les règles complexes, appellent les Repositories
+Repositories : gèrent uniquement l’accès à la base de données
+DTOs : typés et validés, transportent les données entre Controllers et Services
 
 ### Pourquoi pas encore Service/Repository ?
 
