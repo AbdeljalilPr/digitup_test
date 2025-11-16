@@ -3,7 +3,11 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\TrainingController;
+use App\Http\Controllers\EnrollmentController;
+use App\Http\Controllers\EntrepriseController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -22,4 +26,39 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
+});
+
+Route::middleware(['auth:sanctum','role:admin'])->group(function(){
+    Route::apiResource('users', UserController::class);
+    Route::apiResource('categories', CategoryController::class);
+    Route::apiResource('trainings', TrainingController::class);
+});
+
+Route::middleware(['auth:sanctum','role:formateur'])->group(function(){
+    Route::get('my-trainings', [TrainingController::class, 'myTrainings']);
+
+    Route::post('trainings/{training}/grade', [EnrollmentController::class, 'grade']);
+});
+
+Route::middleware(['auth:sanctum','role:apprenant'])->group(function(){
+    Route::post('trainings/{training}/enroll', [EnrollmentController::class, 'enroll']);
+    Route::get('my-enrollments', [EnrollmentController::class, 'myEnrollments']);
+});
+
+Route::get('/users', [UserController::class, 'index']);
+
+Route::middleware(['auth:sanctum','role:admin'])
+    ->get('trainings/statistics', [TrainingController::class, 'trainingStatistics']);
+
+Route::middleware(['auth:sanctum'])->group(function () {
+
+    Route::prefix('entreprise')->group(function () {
+
+        Route::post('/employees', [EntrepriseController::class, 'createEmployee']);
+        Route::post('/purchase-seats/{training}', [EntrepriseController::class, 'purchaseSeats']);
+        Route::post('/enroll-employee/{training}', [EntrepriseController::class, 'enrollEmployee']);
+        Route::get('/employees/progress', [EntrepriseController::class, 'employeesProgress']);
+
+    });
+
 });
